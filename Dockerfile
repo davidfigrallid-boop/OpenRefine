@@ -1,37 +1,27 @@
-FROM scratch AS sources
-ARG VERSION=master
-ADD https://github.com/OpenRefine/OpenRefine.git#$VERSION /opt/openrefine
+FROM openjdk:11-jre-slim
 
-FROM registry.opensuse.org/opensuse/bci/openjdk-devel:21 AS backend
-WORKDIR /opt/openrefine
-COPY --from=sources /opt/openrefine .
-RUN --mount=type=cache,id=m2-cache/root,target=/root/.m2 \
-    mvn -B process-resources compile test-compile
+# --- Version d'OpenRefine à récupérer ---
+ENV REFINE_VERSION=3.8.2
 
-FROM registry.opensuse.org/opensuse/bci/nodejs:22 AS frontend
-WORKDIR /opt/openrefine/main/webapp
-COPY --from=sources /opt/openrefine/main/webapp .
-RUN --mount=type=cache,id=npm-cache/root,target=/root/.npm \
-    npm install
+# --- Téléchargement du binaire officiel ---
+RUN apt-get update && apt-get install -y wget ca-certificates && \
+    wget -q https://github.com/OpenRefine/OpenRefine/releases/download/${REFINE_VERSION}/openrefine-linux-${REFINE_VERSION}.tar.gz && \
+    tar -xzf openrefine-linux-${REFINE_VERSION}.tar.gz && \
+    rm openrefine-linux-${REFINE_VERSION}.tar.gz && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM registry.opensuse.org/opensuse/bci/openjdk:21
-RUN --mount=type=cache,id=zypper-cache/system,target=/var/cache/zypper \
-    --mount=type=cache,id=zypper-lib/system,target=/var/lib/zypper \
-    zypper --non-interactive install gettext-tools
+# --- Répertoire de travail ---
+WORKDIR /openrefine-${REFINE_VERSION}
 
-WORKDIR /opt/openrefine
-COPY --from=backend /opt/openrefine/server server/
-COPY --from=backend /opt/openrefine/main main/
-COPY --from=frontend /opt/openrefine/main/webapp/modules main/webapp/modules
-COPY --from=backend /opt/openrefine/refine .
-COPY entrypoint.sh refine.ini.template ./
+# --- Ports ---
+EXPOSE 3333
 
-EXPOSE 3333/TCP
+# --- Mémoire (compatible Railway) ---
 ENV REFINE_MEMORY=1400M
-ENV REFINE_MIN_MEMORY=1400M
-ENV LANG=en_US.UTF-8
+ENV REFINE_MIN_MEMORY=512M
 
-HEALTHCHECK --start-period=10s CMD curl -sSf -o /dev/null http://localhost:3333
+# --- Dossier pour stocker les projets OpenRefine ---
+VOLUME /data
 
-ENTRYPOINT ["/bin/sh", "entrypoint.sh"]
-CMD ["/opt/openrefine/refine", "-i", "0.0.0.0", "-d", "/workspace", "run"]
+# --- Commande de démarrage ---
+CMD ["./refine", "-i", "0.0.0.0", "-d", "/data", "-p", "3333"]
