@@ -1,4 +1,4 @@
-FROM openjdk:11-jre-slim
+FROM eclipse-temurin:11-jre
 
 # --- Version d'OpenRefine à utiliser ---
 ENV REFINE_VERSION=3.8.2
@@ -16,12 +16,9 @@ WORKDIR /openrefine-${REFINE_VERSION}
 # --- Exposer le port ---
 EXPOSE 3333
 
-# --- Variables mémoire adaptées à Railway ---
+# --- Variables mémoire (optimisées Railway) ---
 ENV REFINE_MEMORY=1400M
 ENV REFINE_MIN_MEMORY=512M
-
-# IMPORTANT : ne pas utiliser VOLUME ici.
-# Railway gérera le volume monté sur /data automatiquement.
 
 # --- Commande de démarrage ---
 CMD ["./refine", "-i", "0.0.0.0", "-d", "/data", "-p", "3333"]
